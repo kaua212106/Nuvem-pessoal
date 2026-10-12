@@ -4,6 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Cofre JSON | Arquivos JSON no GitHub</title>
+<meta name="description" content="Sua nuvem pessoal de arquivos JSON, armazenados no GitHub.">
+<meta name="theme-color" content="#12303a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Cofre JSON">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" href="icon.png">
+<link rel="apple-touch-icon" href="icon.png">
 <style>
 :root{--bg:#f2f5f4;--pn:#fff;--tx:#14231f;--mu:#5d6f69;--bd:#d9e1de;--ac:#0d7a6b;--acs:#e1f2ee;--sb:#12303a;--ok:#12783a;--okb:#dcf3e4;--er:#b42318;--erb:#fde4e1;--mono:ui-monospace,"Cascadia Code","SF Mono",Consolas,monospace}
 @media(prefers-color-scheme:dark){:root{--bg:#0c1517;--pn:#142226;--tx:#e4eeeb;--mu:#8ea49e;--bd:#25393e;--ac:#3dc4ae;--acs:#17393a;--sb:#08171c;--okb:#12341f;--erb:#3d1814;--ok:#5fd68a;--er:#ff8a7d}}
@@ -293,6 +301,10 @@ $('#modal').addEventListener('keydown',e=>{if(e.key==='Escape')$('#m-n').click()
 document.querySelectorAll('.nav,[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.v||b.dataset.go));
 $('#user').value=S.cfg.user||'';$('#repo').value=S.cfg.repo||'';$('#token').value=S.cfg.token||'';
 go('ov');refresh(1);
+
+/* ---- PWA: service worker (só funciona em HTTPS ou localhost) ---- */
+if('serviceWorker' in navigator&&location.protocol!=='file:')
+ addEventListener('load',()=>navigator.serviceWorker.register('service-worker.js').catch(()=>{}));
 </script>
 </body>
 </html>
