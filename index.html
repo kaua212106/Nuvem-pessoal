@@ -102,7 +102,7 @@ main{padding:20px 16px 96px}.two{grid-template-columns:1fr}.strip>div{border-rig
 
  <section id="v-ov">
   <div class="panel strip">
-   <div><small>Arquivos JSON</small><b id="o-count">0</b></div>
+   <div><small>Arquivos totais</small><b id="o-count">0</b></div>
    <div><small>Mais recente</small><b class="mono" id="o-last">—</b></div>
    <div><small>Espaço usado</small><b id="o-size">0 B</b></div>
    <div><small>Conexão</small><b id="o-conn">Desconectado</b></div>
@@ -129,10 +129,10 @@ main{padding:20px 16px 96px}.two{grid-template-columns:1fr}.strip>div{border-rig
  <section id="v-up" hidden>
   <div class="panel">
    <div class="drop" id="drop" tabindex="0" role="button" aria-label="Escolher arquivo JSON">
-    <svg class="i"><use href="#i-up"/></svg><b id="dz-t">Clique para escolher ou arraste um arquivo .json aqui</b>
-    <span>Somente arquivos .json, até 100 MB</span>
+    <svg class="i"><use href="#i-up"/></svg><b id="dz-t">Clique para escolher ou arraste seu arquivo aqui</b>
+    <span>Qualquer tipo de arquivo, até 100 MB</span>
    </div>
-   <input type="file" id="file" accept=".json,application/json" hidden>
+   <input type="file" id="file" accept="*" hidden>
    <div class="fld"><label for="fname">Nome do arquivo no repositório</label><input type="text" id="fname" placeholder="dados.json" autocomplete="off"><p class="hint">Se o nome já existir, você confirma antes de sobrescrever.</p></div>
    <div class="fld" id="prog" hidden><div class="bar"><i id="bar"></i></div><p class="hint" id="pct">0%</p></div>
    <button class="btn" id="send"><svg class="i"><use href="#i-up"/></svg>Enviar arquivo</button>
@@ -167,7 +167,7 @@ const fsz=n=>n<1024?n+' B':n<1048576?(n/1024).toFixed(1)+' KB':(n/1048576).toFix
 const fdt=d=>d?new Date(d).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}):'—';
 function toast(m,t='info'){const e=document.createElement('div');e.className='toast '+t;e.textContent=m;$('#toasts').append(e);setTimeout(()=>e.remove(),5000)}
 
-const V={ov:['Visão Geral','Resumo do seu armazenamento no GitHub'],fl:['Meus Arquivos','Arquivos JSON salvos no repositório'],up:['Enviar Arquivo','Envie um arquivo .json para o repositório'],st:['Configurações','Credenciais de acesso ao GitHub']};
+const V={ov:['Visão Geral','Resumo do seu armazenamento no GitHub'],fl:['Meus Arquivos','Arquivos salvos no repositório'],up:['Enviar Arquivo','Envie um arquivo .json para o repositório'],st:['Configurações','Credenciais de acesso ao GitHub']};
 function go(v){document.querySelectorAll('main section').forEach(s=>s.hidden=s.id!=='v-'+v);document.querySelectorAll('.nav').forEach(b=>b.classList.toggle('on',b.dataset.v===v));$('#ttl').textContent=V[v][0];$('#sub').textContent=V[v][1];scrollTo(0,0)}
 
 /* ---- API do GitHub ---- */
@@ -192,7 +192,7 @@ async function refresh(quiet){
  try{
   let l;
   try{l=await gh(cp('')+'?ref=main')}catch(e){if(e.status===404&&/empty/i.test(e.msg))l=[];else throw e}
-  S.files=l.filter(f=>f.type==='file'&&/\.json$/i.test(f.name));
+  S.files=l.filter(f=>f.type==='file');
   const dc=ld(DK,{});
   await Promise.all(S.files.map(async f=>{
    if(dc[f.sha]){f.date=dc[f.sha];return}
@@ -211,7 +211,7 @@ function render(){
  $('#o-size').textContent=fsz(f.reduce((a,x)=>a+x.size,0));
  $('#o-sync').textContent=S.sync?S.sync.toLocaleTimeString('pt-BR'):'—';
  $('#list').innerHTML=n?f.map((x,i)=>`<div class="row"><div class="fn"><svg class="i"><use href="#i-file"/></svg><span>${esc(x.name)}</span></div><span>${fsz(x.size)}</span><span>${fdt(x.date)}</span><div class="acts"><button class="btn sec sm" data-a="dl" data-i="${i}"><svg class="i"><use href="#i-dl"/></svg>Baixar</button><button class="btn dan sm" data-a="rm" data-i="${i}"><svg class="i"><use href="#i-rm"/></svg>Excluir</button></div></div>`).join('')
- :`<div class="empty"><svg class="i"><use href="#i-fold"/></svg><b>${S.ok?'Nenhum arquivo JSON no repositório':'Sem conexão com o repositório'}</b>${S.ok?'Envie seu primeiro arquivo na aba Enviar Arquivo.':'Confira as credenciais na aba Configurações.'}</div>`
+ :`<div class="empty"><svg class="i"><use href="#i-fold"/></svg><b>${S.ok?'Nenhum arquivo no repositório':'Sem conexão com o repositório'}</b>${S.ok?'Envie seu primeiro arquivo na aba Enviar Arquivo.':'Confira as credenciais na aba Configurações.'}</div>`
 }
 
 /* ---- Modal de confirmação ---- */
@@ -230,7 +230,7 @@ async function remove(f){
 }
 
 /* ---- Envio ---- */
-const DEF='Clique para escolher ou arraste um arquivo .json aqui';
+const DEF='Clique para escolher ou arraste seu arquivo aqui';
 function pickFile(file){
  if(!file)return;
  if(!/\.json$/i.test(file.name)){toast('Apenas arquivos com extensão .json são aceitos.','err');return}
