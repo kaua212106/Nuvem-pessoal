@@ -9,7 +9,10 @@
   "orientation": "any",
   "background_color": "#12303a",
   "theme_color": "#12303a",
-  "categories": ["productivity", "utilities"],
+  "categories": [
+    "productivity",
+    "utilities"
+  ],
   "icons": [
     {
       "src": "icon.png",
@@ -23,5 +26,20 @@
       "type": "image/png",
       "purpose": "maskable"
     }
-  ]
+  ],
+  "share_target": {
+    "action": "./share-target",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "files": [
+        {
+          "name": "arquivos",
+          "accept": [
+            "*/*"
+          ]
+        }
+      ]
+    }
+  }
 }
