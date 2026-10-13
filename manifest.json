@@ -1,6 +1,6 @@
 {
   "name": "Cofre JSON - Nuvem pessoal",
-  "short_name": "Cofre JSON",
+  "short_name": "Nuvem",
   "description": "Sua nuvem pessoal de arquivos JSON, armazenados no GitHub.",
   "lang": "pt-BR",
   "start_url": "./index.html",
