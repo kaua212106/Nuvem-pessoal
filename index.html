@@ -51,7 +51,7 @@ input[type=text],input[type=password]{width:100%;padding:11px 13px;border:1px so
 .acts{display:flex;gap:8px;flex-wrap:wrap}
 .drop{border:2px dashed var(--bd);border-radius:12px;padding:38px 16px;text-align:center;cursor:pointer;color:var(--mu);margin-bottom:16px}
 .drop:hover,.drop.over{border-color:var(--ac);background:var(--acs);color:var(--tx)}.drop .i{width:30px;height:30px;color:var(--ac)}
-.drop b{display:block;color:var(--tx);margin-top:6px;word-break:break-all}
+.drop b{display:block;color:var(--tx);margin-top:6px;overflow-wrap:anywhere}
 .bar{height:8px;background:var(--bd);border-radius:9px;overflow:hidden}.bar i{display:block;height:100%;width:0;background:var(--ac);transition:width .2s}
 .tbl{padding:0}
 .hd,.row{display:grid;grid-template-columns:minmax(0,1fr) 100px 150px auto;gap:16px;align-items:center;padding:13px 20px}
@@ -114,7 +114,7 @@ main{padding:20px 16px 96px}.two{grid-template-columns:1fr}.strip>div{border-rig
    <ol class="steps">
     <li>No GitHub, crie um repositório e um Personal Access Token com permissão de leitura e escrita em Contents.</li>
     <li>Informe usuário, repositório e token em Configurações e teste a conexão.</li>
-    <li>Envie arquivos .json e gerencie tudo em Meus Arquivos.</li>
+    <li>Envie seus arquivos e gerencie tudo em Meus Arquivos.</li>
    </ol>
    <div class="acts"><button class="btn" data-go="st">Abrir configurações</button><button class="btn sec" data-go="up">Enviar arquivo</button></div>
   </div>
@@ -128,12 +128,12 @@ main{padding:20px 16px 96px}.two{grid-template-columns:1fr}.strip>div{border-rig
 
  <section id="v-up" hidden>
   <div class="panel">
-   <div class="drop" id="drop" tabindex="0" role="button" aria-label="Escolher arquivo JSON">
+   <div class="drop" id="drop" tabindex="0" role="button" aria-label="Escolher arquivo">
     <svg class="i"><use href="#i-up"/></svg><b id="dz-t">Clique para escolher ou arraste seu arquivo aqui</b>
     <span>Qualquer tipo de arquivo, até 100 MB</span>
    </div>
    <input type="file" id="file" accept="*" hidden>
-   <div class="fld"><label for="fname">Nome do arquivo no repositório</label><input type="text" id="fname" placeholder="dados.json" autocomplete="off"><p class="hint">Se o nome já existir, você confirma antes de sobrescrever.</p></div>
+   <div class="fld"><label for="fname">Nome do arquivo no repositório</label><input type="text" id="fname" placeholder="nome-do-arquivo.ext" autocomplete="off"><p class="hint">Se o nome já existir, você confirma antes de sobrescrever.</p></div>
    <div class="fld" id="prog" hidden><div class="bar"><i id="bar"></i></div><p class="hint" id="pct">0%</p></div>
    <button class="btn" id="send"><svg class="i"><use href="#i-up"/></svg>Enviar arquivo</button>
   </div>
@@ -167,7 +167,7 @@ const fsz=n=>n<1024?n+' B':n<1048576?(n/1024).toFixed(1)+' KB':(n/1048576).toFix
 const fdt=d=>d?new Date(d).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}):'—';
 function toast(m,t='info'){const e=document.createElement('div');e.className='toast '+t;e.textContent=m;$('#toasts').append(e);setTimeout(()=>e.remove(),5000)}
 
-const V={ov:['Visão Geral','Resumo do seu armazenamento no GitHub'],fl:['Meus Arquivos','Arquivos salvos no repositório'],up:['Enviar Arquivo','Envie um arquivo .json para o repositório'],st:['Configurações','Credenciais de acesso ao GitHub']};
+const V={ov:['Visão Geral','Resumo do seu armazenamento no GitHub'],fl:['Meus Arquivos','Arquivos salvos no repositório'],up:['Enviar Arquivo','Envie qualquer arquivo para o repositório'],st:['Configurações','Credenciais de acesso ao GitHub']};
 function go(v){document.querySelectorAll('main section').forEach(s=>s.hidden=s.id!=='v-'+v);document.querySelectorAll('.nav').forEach(b=>b.classList.toggle('on',b.dataset.v===v));$('#ttl').textContent=V[v][0];$('#sub').textContent=V[v][1];scrollTo(0,0)}
 
 /* ---- API do GitHub ---- */
@@ -233,7 +233,6 @@ async function remove(f){
 const DEF='Clique para escolher ou arraste seu arquivo aqui';
 function pickFile(file){
  if(!file)return;
- if(!/\.json$/i.test(file.name)){toast('Apenas arquivos com extensão .json são aceitos.','err');return}
  if(file.size>100*1048576){toast('O arquivo excede o limite de 100 MB do GitHub.','err');return}
  S.pick=file;$('#dz-t').textContent=file.name+' ('+fsz(file.size)+')';$('#fname').value=file.name
 }
@@ -256,10 +255,8 @@ async function send(){
  const file=S.pick;if(!file){toast('Nenhum arquivo selecionado.','err');return}
  let name=$('#fname').value.trim();
  if(!name||/[\\/]/.test(name)){toast('Informe um nome de arquivo válido, sem barras.','err');return}
- if(!/\.json$/i.test(name))name+='.json';
  const btn=$('#send');btn.disabled=true;
  try{
-  if(file.size<2e7){try{JSON.parse(await file.text())}catch(e){throw new Error('O arquivo não contém um JSON válido.')}}
   let sha;
   try{sha=(await gh(cu(name))).sha}catch(e){if(e.status!==404)throw e}
   if(sha&&!await ask('Sobrescrever arquivo',`Já existe <b>${esc(name)}</b> no repositório. Deseja substituí-lo pelo novo conteúdo?`,'Sobrescrever'))throw new Error('Envio cancelado.');
