@@ -268,6 +268,8 @@ label{font-size:13px;color:#c7d8d5;letter-spacing:.01em;margin-bottom:7px}
     <span>Qualquer tipo de arquivo, até 100 MB</span>
    </div>
    <input type="file" id="file" accept="*" multiple hidden>
+   <input type="file" id="dir" webkitdirectory multiple hidden>
+   <button class="btn sec" id="pick-dir" type="button" style="width:100%;margin:-4px 0 14px">📁 Enviar pasta inteira</button>
    <div class="fld" style="margin-top:14px"><label for="dest-sel">Enviar para a pasta</label><select id="dest-sel" style="width:100%;padding:11px 12px;border:1px solid var(--bd);border-radius:8px;background:var(--pn);color:var(--tx);font:inherit;min-height:43px"></select><p class="hint" id="dest"></p></div>
    <div class="fld" id="fnw"><label for="fname">Nome do arquivo no repositório</label><input type="text" id="fname" placeholder="nome-do-arquivo.ext" autocomplete="off"><p class="hint">Se o nome já existir, você confirma antes de sobrescrever.</p></div>
    <div class="q" id="queue"></div>
@@ -537,20 +539,32 @@ $('#dest-sel').onchange=async e=>{
  catch(err){toast(err.message,'err');dest(1)}
 };
 function pickFiles(list){
- const a=[...list];if(!a.length)return;
- const big=a.find(f=>f.size>100*1048576);if(big){toast('"'+big.name+'" excede o limite de 100 MB do GitHub.','err');return}
- S.picks=a;const one=a.length===1;
- $('#dz-t').textContent=one?a[0].name+' ('+fsz(a[0].size)+')':a.length+' arquivos selecionados';
+ let a=[...list];if(!a.length)return;
+ const big=a.filter(f=>f.size>100*1048576);
+ if(big.length){a=a.filter(f=>f.size<=100*1048576);toast(big.length+' arquivo(s) acima de 100 MB ignorado(s): '+big.slice(0,3).map(f=>f.name).join(', '),'err');if(!a.length)return}
+ a.forEach(f=>{f._rel=f._rel||f.webkitRelativePath||''});
+ S.picks=a;const isDir=a.some(f=>f._rel),one=a.length===1&&!isDir;
+ const tot=a.reduce((n,f)=>n+f.size,0);
+ $('#dz-t').textContent=isDir?'Pasta "'+a.find(f=>f._rel)._rel.split('/')[0]+'": '+a.length+' arquivos ('+fsz(tot)+')':one?a[0].name+' ('+fsz(a[0].size)+')':a.length+' arquivos selecionados';
  $('#fnw').hidden=!one;if(one)$('#fname').value=a[0].name;
- $('#queue').innerHTML=a.map(f=>`<div><div class="it"><span>${esc(f.name)} (${fsz(f.size)})</span><span>aguardando</span></div><div class="bar"><i></i></div></div>`).join('')
+ $('#queue').innerHTML=a.map(f=>`<div><div class="it"><span>${esc(f._rel||f.name)} (${fsz(f.size)})</span><span>aguardando</span></div><div class="bar"><i></i></div></div>`).join('')
 }
 const dz=$('#drop');
 dz.onclick=()=>$('#file').click();
 dz.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();$('#file').click()}};
 $('#file').onchange=e=>pickFiles(e.target.files);
+$('#pick-dir').onclick=()=>$('#dir').click();
+$('#dir').onchange=e=>pickFiles(e.target.files);
+async function readEntry(en,pre,out){
+ if(en.isFile){await new Promise(r=>en.file(f=>{f._rel=pre+en.name;out.push(f);r()},r))}
+ else if(en.isDirectory){const rd=en.createReader(),all=[];for(;;){const b=await new Promise((r,j)=>rd.readEntries(r,j));if(!b.length)break;all.push(...b)}for(const c of all)await readEntry(c,pre+en.name+'/',out)}
+}
 ['dragenter','dragover'].forEach(t=>dz.addEventListener(t,e=>{e.preventDefault();dz.classList.add('over')}));
 ['dragleave','drop'].forEach(t=>dz.addEventListener(t,e=>{e.preventDefault();dz.classList.remove('over')}));
-dz.addEventListener('drop',e=>pickFiles(e.dataTransfer.files));
+dz.addEventListener('drop',async e=>{
+ const ens=[...(e.dataTransfer.items||[])].map(i=>i.webkitGetAsEntry&&i.webkitGetAsEntry()).filter(Boolean);
+ if(ens.some(x=>x.isDirectory)){const out=[];for(const en of ens)await readEntry(en,'',out);pickFiles(out)}else pickFiles(e.dataTransfer.files)
+});
 function put(name,body,cb){return new Promise((ok,ko)=>{
  const x=new XMLHttpRequest();
  x.open('PUT',cp(name));const h=hdr();for(const k in h)x.setRequestHeader(k,h[k]);x.setRequestHeader('Content-Type','application/json');
@@ -560,21 +574,24 @@ function put(name,body,cb){return new Promise((ok,ko)=>{
 async function send(){
  if(!ready(S.cfg)){toast('Configure suas credenciais antes de enviar.','err');go('st');return}
  if(!S.picks.length){toast('Nenhum arquivo selecionado.','err');return}
- const one=S.picks.length===1,btn=$('#send');btn.disabled=true;let okn=0;
+ const one=S.picks.length===1,btn=$('#send');btn.disabled=true;let okn=0,ow=false;
  for(let i=0;i<S.picks.length;i++){
-  const file=S.picks[i],name=one?$('#fname').value.trim():file.name,row=$('#queue').children[i],st=row.querySelector('.it span:last-child'),bar=row.querySelector('.bar i');
-  if(!name||/[\\/]/.test(name)){st.textContent='nome inválido';toast('Informe um nome de arquivo válido, sem barras.','err');continue}
+  const file=S.picks[i],name=(one&&!file._rel)?$('#fname').value.trim():(file._rel||file.name),row=$('#queue').children[i],st=row.querySelector('.it span:last-child'),bar=row.querySelector('.bar i');
+  if(!name||(file._rel?name.split('/').some(x=>!x||x==='.'||x==='..'):/[\\/]/.test(name))){st.textContent='nome inválido';toast('Informe um nome de arquivo válido, sem barras.','err');continue}
   const base=$('#dest-sel').value,path=base?base+'/'+name:name;
   try{
    let sha;try{sha=(await gh(cu(path))).sha}catch(e){if(e.status!==404)throw e}
-   if(sha&&!await ask('Sobrescrever arquivo',`Já existe <b>${esc(path)}</b> no repositório. Deseja substituí-lo?`,'Sobrescrever')){st.textContent='ignorado';continue}
+   if(sha&&!ow){
+    if(!await ask('Sobrescrever arquivo',`Já existe <b>${esc(path)}</b> no repositório. Deseja substituí-lo?`,'Sobrescrever')){st.textContent='ignorado';continue}
+    if(S.picks.length>1&&await ask('Sobrescrever todos','Sobrescrever também todos os outros arquivos que já existirem?','Sim, todos'))ow=true
+   }
    st.textContent='enviando…';
    await put(path,{message:(sha?'Atualiza ':'Adiciona ')+path,content:await blob2b64(file),branch:'main',...(sha?{sha}:{})},v=>{bar.style.width=v+'%';st.textContent=Math.round(v)+'%'});
    bar.style.width='100%';st.textContent='enviado';okn++
   }catch(e){st.textContent='erro';toast(name+': '+e.message,'err')}
  }
  btn.disabled=false;
- if(okn){toast(okn>1?okn+' arquivos enviados com sucesso!':'Arquivo enviado com sucesso!','ok');S.picks=[];$('#dest-sel').dataset.set='';$('#dz-t').textContent=DEF;$('#fname').value='';$('#file').value='';$('#fnw').hidden=false;await refresh(1);setTimeout(()=>$('#queue').innerHTML='',900);go('fl')}
+ if(okn){toast(okn>1?okn+' arquivos enviados com sucesso!':'Arquivo enviado com sucesso!','ok');S.picks=[];$('#dest-sel').dataset.set='';$('#dz-t').textContent=DEF;$('#fname').value='';$('#file').value='';$('#dir').value='';$('#fnw').hidden=false;await refresh(1);setTimeout(()=>$('#queue').innerHTML='',900);go('fl')}
 }
 $('#send').onclick=send;
 
