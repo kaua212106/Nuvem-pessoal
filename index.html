@@ -268,7 +268,7 @@ label{font-size:13px;color:#c7d8d5;letter-spacing:.01em;margin-bottom:7px}
     <span>Qualquer tipo de arquivo, até 100 MB</span>
    </div>
    <input type="file" id="file" accept="*" multiple hidden>
-   <p class="hint" id="dest" style="margin:-6px 0 14px"></p>
+   <div class="fld" style="margin-top:14px"><label for="dest-sel">Enviar para a pasta</label><select id="dest-sel" style="width:100%;padding:11px 12px;border:1px solid var(--bd);border-radius:8px;background:var(--pn);color:var(--tx);font:inherit;min-height:43px"></select><p class="hint" id="dest"></p></div>
    <div class="fld" id="fnw"><label for="fname">Nome do arquivo no repositório</label><input type="text" id="fname" placeholder="nome-do-arquivo.ext" autocomplete="off"><p class="hint">Se o nome já existir, você confirma antes de sobrescrever.</p></div>
    <div class="q" id="queue"></div>
    <button class="btn" id="send"><svg class="i"><use href="#i-up"/></svg>Enviar arquivo</button>
@@ -311,7 +311,7 @@ const fdt=d=>d?new Date(d).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'
 function toast(m,t='info'){const e=document.createElement('div');e.className='toast '+t;e.textContent=m;$('#toasts').append(e);setTimeout(()=>e.remove(),5000)}
 
 const V={ov:['Visão Geral','Resumo do seu armazenamento no GitHub'],fl:['Meus Arquivos','Arquivos salvos no repositório'],up:['Enviar Arquivo','Envie qualquer arquivo para o repositório'],st:['Configurações','Credenciais de acesso ao GitHub'],tr:['Lixeira','Arquivos excluídos que ainda podem ser restaurados']};
-function go(v){document.querySelectorAll('main section').forEach(s=>s.hidden=s.id!=='v-'+v);document.querySelectorAll('.nav').forEach(b=>b.classList.toggle('on',b.dataset.v===v));$('#ttl').textContent=V[v][0];$('#sub').textContent=V[v][1];scrollTo(0,0);if(v==='tr')trash();if(v==='up')dest()}
+function go(v){document.querySelectorAll('main section').forEach(s=>s.hidden=s.id!=='v-'+v);document.querySelectorAll('.nav').forEach(b=>b.classList.toggle('on',b.dataset.v===v));$('#ttl').textContent=V[v][0];$('#sub').textContent=V[v][1];scrollTo(0,0);if(v==='tr')trash();if(v==='up')dest(1)}
 
 /* ---- API do GitHub ---- */
 const rp=()=>BASE+S.cfg.user+'/'+S.cfg.repo;
@@ -337,7 +337,7 @@ async function refresh(quiet){
  try{
   let l;
   try{l=await gh(cu(S.path))}catch(e){if(e.status===404&&/empty/i.test(e.msg))l=[];else throw e}
-  S.items=l.filter(f=>f.name!=='.gitkeep');S.files=S.items.filter(f=>f.type==='file');
+  S.items=l.filter(f=>f.name!=='.gitkeep');S.dirs=S.dirs||[];S.files=S.items.filter(f=>f.type==='file');
   // Usa a árvore completa para contar todos os arquivos, na raiz e em qualquer subpasta.
   // .gitkeep é ignorado por ser apenas um marcador de pastas vazias.
   const dc=ld(DK,{});
@@ -345,6 +345,7 @@ async function refresh(quiet){
    const tree=await gh(rp()+'/git/trees/main?recursive=1');
    if(Array.isArray(tree.tree)){
     if(tree.truncated)toast('O GitHub retornou uma árvore incompleta; os totais podem estar parciais.','err');
+    S.dirs=tree.tree.filter(x=>x.type==='tree').map(x=>x.path);
     const blobs=tree.tree.filter(x=>x.type==='blob'&&x.path.split('/').pop()!=='.gitkeep');
     S.allFiles=blobs.map(x=>({name:x.path.split('/').pop(),path:x.path,size:x.size||0,sha:x.sha,type:'file',date:dc[x.sha]||null}));
     S.totalCount=S.allFiles.length;
@@ -514,7 +515,27 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#viewer').hidde
 
 /* ---- Envio ---- */
 const DEF='Clique para escolher ou arraste seus arquivos aqui';
-const dest=()=>$('#dest').textContent='Destino: '+(S.path?S.path+'/':'raiz do repositório');
+function dest(keep){
+ const sel=$('#dest-sel');if(!sel)return;
+ const dirs=[...new Set([...(S.dirs||[]),S.path].filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+ let cur=keep&&sel.dataset.set?sel.value:S.path;if(cur&&!dirs.includes(cur))cur='';
+ sel.innerHTML='<option value="">Raiz do repositório</option>'+dirs.map(d=>`<option value="${esc(d)}">📁 ${esc(d)}</option>`).join('')+'<option value="__new__">＋ Nova pasta…</option>';
+ sel.value=cur;
+ $('#dest').textContent='Destino: '+(cur?cur+'/':'raiz do repositório')
+}
+$('#dest-sel').onchange=async e=>{
+ const sel=e.target;sel.dataset.set='1';
+ if(sel.value!=='__new__'){dest(1);return}
+ const n=(await ask('Nova pasta','Nome da pasta. Use barras para subpastas, ex.: <b>mods/addons</b>','Criar',0,''));
+ if(!n){dest(1);return}
+ const parts=n.split('/').map(x=>x.trim()).filter(Boolean);
+ if(!parts.length||parts.some(x=>x.startsWith('.')||/\\/.test(x))){toast('Nome de pasta inválido.','err');dest(1);return}
+ const full=parts.join('/');
+ if((S.dirs||[]).includes(full)){sel.innerHTML+=`<option value="${esc(full)}"></option>`;sel.value=full;dest(1);return}
+ try{await gh(cp(full+'/.gitkeep'),{method:'PUT',body:{message:'Cria pasta '+full,content:'Cg==',branch:'main'}});
+  S.dirs=[...(S.dirs||[]),full];toast('Pasta criada.','ok');sel.value=full;sel.dataset.set='1';dest(1);refresh(1)}
+ catch(err){toast(err.message,'err');dest(1)}
+};
 function pickFiles(list){
  const a=[...list];if(!a.length)return;
  const big=a.find(f=>f.size>100*1048576);if(big){toast('"'+big.name+'" excede o limite de 100 MB do GitHub.','err');return}
@@ -543,7 +564,7 @@ async function send(){
  for(let i=0;i<S.picks.length;i++){
   const file=S.picks[i],name=one?$('#fname').value.trim():file.name,row=$('#queue').children[i],st=row.querySelector('.it span:last-child'),bar=row.querySelector('.bar i');
   if(!name||/[\\/]/.test(name)){st.textContent='nome inválido';toast('Informe um nome de arquivo válido, sem barras.','err');continue}
-  const path=S.path?S.path+'/'+name:name;
+  const base=$('#dest-sel').value,path=base?base+'/'+name:name;
   try{
    let sha;try{sha=(await gh(cu(path))).sha}catch(e){if(e.status!==404)throw e}
    if(sha&&!await ask('Sobrescrever arquivo',`Já existe <b>${esc(path)}</b> no repositório. Deseja substituí-lo?`,'Sobrescrever')){st.textContent='ignorado';continue}
@@ -553,7 +574,7 @@ async function send(){
   }catch(e){st.textContent='erro';toast(name+': '+e.message,'err')}
  }
  btn.disabled=false;
- if(okn){toast(okn>1?okn+' arquivos enviados com sucesso!':'Arquivo enviado com sucesso!','ok');S.picks=[];$('#dz-t').textContent=DEF;$('#fname').value='';$('#file').value='';$('#fnw').hidden=false;await refresh(1);setTimeout(()=>$('#queue').innerHTML='',900);go('fl')}
+ if(okn){toast(okn>1?okn+' arquivos enviados com sucesso!':'Arquivo enviado com sucesso!','ok');S.picks=[];$('#dest-sel').dataset.set='';$('#dz-t').textContent=DEF;$('#fname').value='';$('#file').value='';$('#fnw').hidden=false;await refresh(1);setTimeout(()=>$('#queue').innerHTML='',900);go('fl')}
 }
 $('#send').onclick=send;
 
@@ -600,7 +621,7 @@ async function shared(){
  try{const c=await caches.open('cofre-share'),fs=[];
   for(const k of await c.keys()){const r=await c.match(k);fs.push(new File([await r.blob()],decodeURIComponent(r.headers.get('X-Name')||'arquivo'),{type:r.headers.get('Content-Type')||''}));await c.delete(k)}
   history.replaceState(null,'',location.pathname);
-  if(fs.length){pickFiles(fs);go('up');toast('Arquivos recebidos. Toque em Enviar (para uma pasta, abra-a antes em Meus Arquivos).','ok')}
+  if(fs.length){pickFiles(fs);go('up');toast('Arquivos recebidos. Escolha a pasta de destino e toque em Enviar.','ok')}
  }catch(e){}
 }
 $('#lk-go').onclick=async()=>{try{S.cfg.token=await unlockTk(S.cfg.enc,$('#lk-pin').value.trim());$('#token').value=S.cfg.token;$('#lock').hidden=true;$('#lk-pin').value='';refresh(1);shared()}catch(e){toast('PIN incorreto.','err')}};

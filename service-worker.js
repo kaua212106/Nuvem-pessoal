@@ -4,7 +4,7 @@
    sem cache, para que o token e os dados nunca fiquem guardados aqui.
    Ao alterar os arquivos do app, mude a VERSAO para forçar a atualização. */
 
-const VERSAO = 'cofre-json-v2';
+const VERSAO = 'cofre-json-v2-pasta';
 const ARQUIVOS = ['./', './index.html', './manifest.json', './icon.png'];
 
 self.addEventListener('install', (e) => {
